@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>服务器监控系统</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <!-- ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-bg: #f8f9fa;
+            --dark-bg: #343a40;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 1.5rem;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid #eaeaea;
+            font-weight: 600;
+            padding: 1rem 1.25rem;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-online {
+            background-color: var(--success-color);
+        }
+        
+        .status-offline {
+            background-color: var(--danger-color);
+        }
+        
+        .alert-banner {
+            border-radius: 10px;
+            border-left: 5px solid;
+            padding: 1rem 1.25rem;
+        }
+        
+        .alert-critical {
+            background-color: rgba(231, 76, 60, 0.1);
+            border-left-color: var(--danger-color);
+        }
+        
+        .alert-warning {
+            background-color: rgba(243, 156, 18, 0.1);
+            border-left-color: var(--warning-color);
+        }
+        
+        .refresh-info {
+            background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        
+        .chart-container {
+            height: 350px;
+            border-radius: 10px;
+            background: white;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-success {
+            background-color: var(--success-color);
+            border-color: var(--success-color);
+        }
+        
+        .btn-warning {
+            background-color: var(--warning-color);
+            border-color: var(--warning-color);
+        }
+        
+        .btn-danger {
+            background-color: var(--danger-color);
+            border-color: var(--danger-color);
+        }
+        
+        .nav-pills .nav-link.active {
+            background-color: var(--primary-color);
+        }
+        
+        .table-hover tbody tr:hover {
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+        
+        .host-form {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .language-switcher {
+            margin-left: 15px;
+        }
+        
+        @media (max-width: 768px) {
+            .metric-value {
+                font-size: 1.2rem;
+            }
+            
+            .chart-container {
+                height: 300px;
+            }
+            
+            .language-switcher {
+                margin-left: 0;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-graph-up"></i> 服务器监控系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/">
+                            <i class="bi bi-speedometer2"></i> {{ lang.nav_dashboard }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alerts">
+                            <i class="bi bi-bell"></i> {{ lang.nav_alerts }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/history">
+                            <i class="bi bi-clock-history"></i> {{ lang.nav_history }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/statistics">
+                            <i class="bi bi-graph-up-arrow"></i> {{ lang.nav_statistics }}
+                        </a>
+                    </li>
+                </ul>
+                <div class="navbar-text d-flex align-items-center">
+                    <div class="language-switcher">
+                        <div class="btn-group">
+                            <a href="/set_language/zh" class="btn btn-sm {{ 'btn-primary' if language == 'zh' else 'btn-outline-primary' }}">中文</a>
+                            <a href="/set_language/en" class="btn btn-sm {{ 'btn-primary' if language == 'en' else 'btn-outline-primary' }}">English</a>
+                        </div>
+                    </div>
+                    <span class="ms-3">
+                        <i class="bi bi-clock"></i> <span id="currentTime">--:--:--</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 告警横幅 -->
+        <div id="alertBanner" class="alert-banner mb-4" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-exclamation-triangle-fill"></i> 
+                    <strong>{{ lang.current_alerts }}:</strong>
+                    <span class="badge bg-danger ms-2" id="criticalCount">0</span> {{ lang.critical_alerts }},
+                    <span class="badge bg-warning ms-2" id="warningCount">0</span> {{ lang.warning }}
+                </div>
+                <a href="/alerts" class="btn btn-sm btn-outline-danger">
+                    {{ lang.detailed_data }} <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+        
+        <!-- 刷新信息 -->
+        <div class="refresh-info">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <i class="bi bi-arrow-clockwise"></i> {{ lang.data_auto_refresh }} | 
+                    <i class="bi bi-graph-up"></i> {{ lang.real_time_charts }} | 
+                    <i class="bi bi-clock"></i> {{ lang.last_update }}: <span id="lastUpdateTime">-</span>
+                </div>
+                <div class="col-md-4 text-end">
+                    <button class="btn btn-sm btn-outline-primary" onclick="updateData()">
+                        <i class="bi bi-arrow-clockwise"></i> {{ lang.refresh }}
+                    </button>
+                    <a href="/collect_all" class="btn btn-sm btn-success ms-2">
+                        <i class="bi bi-collection-play"></i> {{ lang.collect_all_data }}
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 添加主机表单 -->
+        <div class="host-form mb-4">
+            <h4 class="mb-3"><i class="bi bi-plus-circle"></i> {{ lang.add_monitored_host }}</h4>
+            <form action="/add_host" method="post" class="row g-3">
+                <div class="col-md-3">
+                    <label for="ip" class="form-label">{{ lang.ip_address }}</label>
+                    <input type="text" class="form-control" name="ip" placeholder="192.168.1.100" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="user" class="form-label">{{ lang.username }}</label>
+                    <input type="text" class="form-control" name="user" placeholder="root" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="pwd" class="form-label">{{ lang.password }}</label>
+                    <input type="password" class="form-control" name="pwd" placeholder="{{ lang.password }}" required>
+                </div>
+                <div class="col-md-2">
+                    <label for="port" class="form-label">{{ lang.ssh_port }}</label>
+                    <input type="number" class="form-control" name="port" value="22" placeholder="22">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-plus-lg"></i> {{ lang.add_host }}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="row">
+            <!-- 主机列表 -->
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-pc-display"></i> {{ lang.host_list }}</span>
+                        <span class="badge bg-primary" id="hostCount">0</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="hostsTable">
+                            <!-- 动态加载主机列表 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 服务器状态概览 -->
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-heart-pulse"></i> {{ lang.server_status_overview }}
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="metric-value text-primary" id="onlineCount">0</div>
+                                <div class="metric-label">{{ lang.online_servers }}</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-value text-danger" id="offlineCount">0</div>
+                                <div class="metric-label">{{ lang.offline_servers }}</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-value text-warning" id="totalCount">0</div>
+                                <div class="metric-label">{{ lang.total_servers }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 资源使用概览 -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <i class="bi bi-speedometer2"></i> {{ lang.resource_usage_overview }}
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <div class="metric-value" id="avgCpu">0%</div>
+                                <div class="metric-label">{{ lang.avg_cpu_usage }}</div>
+                            </div>
+                            <div class="col-6">
+                                <div class="metric-value" id="avgMemory">0%</div>
+                                <div class="metric-label">{{ lang.avg_memory_usage }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 监控数据表格 -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-table"></i> {{ lang.real_time_monitoring }}
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <div id="metricsTable">
+                        <!-- 动态加载监控数据 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表展示 -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-bar-chart-line"></i> {{ lang.monitoring_charts }}
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div id="cpuChart" class="chart-container"></div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div id="memoryChart" class="chart-container"></div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div id="statusChart" class="chart-container"></div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div id="gaugeChart" class="chart-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // 初始化ECharts实例
+        const cpuChart = echarts.init(document.getElementById('cpuChart'));
+        const memoryChart = echarts.init(document.getElementById('memoryChart'));
+        const statusChart = echarts.init(document.getElementById('statusChart'));
+        const gaugeChart = echarts.init(document.getElementById('gaugeChart'));
+
+        // 图表配置
+        const chartOptions = {
+            cpu: {
+                title: { 
+                    text: '{{ lang.cpu_usage }}', 
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 16,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: { 
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        return `${params[0].name}<br/>${params[0].marker} ${params[0].seriesName}: ${params[0].value}%`;
+                    }
+                },
+                grid: {
+                    top: '20%',
+                    left: '5%',
+                    right: '5%',
+                    bottom: '10%',
+                    containLabel: true
+                },
+                xAxis: { 
+                    type: 'category', 
+                    data: [],
+                    axisLabel: {
+                        rotate: 45,
+                        fontSize: 10
+                    }
+                },
+                yAxis: { 
+                    type: 'value', 
+                    max: 100,
+                    splitLine: { show: true },
+                    axisLine: { show: true },
+                    axisLabel: {
+                        formatter: '{value}%'
+                    }
+                },
+                series: [{ 
+                    name: '{{ lang.cpu_usage }}', 
+                    type: 'bar', 
+                    data: [],
+                    barWidth: '60%',
+                    itemStyle: {
+                        color: function(params) {
+                            return params.value > 90 ? '#e74c3c' : 
+                                   params.value > 80 ? '#f39c12' : '#27ae60';
+                        }
+                    }
+                }]
+            },
+            memory: {
+                title: { 
+                    text: '{{ lang.memory_usage }}', 
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 16,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: { 
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        return `${params[0].name}<br/>${params[0].marker} ${params[0].seriesName}: ${params[0].value}%`;
+                    }
+                },
+                grid: {
+                    top: '20%',
+                    left: '5%',
+                    right: '5%',
+                    bottom: '10%',
+                    containLabel: true
+                },
+                xAxis: { 
+                    type: 'category', 
+                    data: [],
+                    axisLabel: {
+                        rotate: 45,
+                        fontSize: 10
+                    }
+                },
+                yAxis: { 
+                    type: 'value', 
+                    max: 100,
+                    splitLine: { show: true },
+                    axisLine: { show: true },
+                    axisLabel: {
+                        formatter: '{value}%'
+                    }
+                },
+                series: [{ 
+                    name: '{{ lang.memory_usage }}', 
+                    type: 'bar', 
+                    data: [],
+                    barWidth: '60%',
+                    itemStyle: {
+                        color: function(params) {
+                            return params.value > 90 ? '#e74c3c' : 
+                                   params.value > 80 ? '#f39c12' : '#3498db';
+                        }
+                    }
+                }]
+            },
+            status: {
+                title: { 
+                    text: '{{ lang.server_status_distribution }}', 
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 16,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: { 
+                    trigger: 'item',
+                    formatter: '{a} <br/>{b}: {c} ({d}%)'
+                },
+                legend: {
+                    orient: 'horizontal',
+                    bottom: 0,
+                    textStyle: {
+                        fontSize: 12
+                    }
+                },
+                series: [{
+                    name: '{{ lang.server_status }}',
+                    type: 'pie',
+                    radius: ['40%', '70%'],
+                    center: ['50%', '45%'],
+                    avoidLabelOverlap: true,
+                    label: {
+                        show: true,
+                        formatter: '{b}: {c} ({d}%)',
+                        fontSize: 12
+                    },
+                    emphasis: {
+                        label: {
+                            show: true,
+                            fontSize: 14,
+                            fontWeight: 'bold'
+                        }
+                    },
+                    data: [
+                        { value: 0, name: '{{ lang.online }}', itemStyle: { color: '#27ae60' } },
+                        { value: 0, name: '{{ lang.offline }}', itemStyle: { color: '#e74c3c' } }
+                    ]
+                }]
+            },
+            gauge: {
+                title: { 
+                    text: '{{ lang.overall_resource_usage }}', 
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 16,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: { 
+                    formatter: '{a} <br/>{b} : {c}%' 
+                },
+                series: [{
+                    name: '{{ lang.avg_cpu_usage }}',
+                    type: 'gauge',
+                    radius: '90%',
+                    progress: { 
+                        show: true,
+                        width: 15
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            width: 15,
+                            color: [
+                                [0.3, '#67e0e3'],
+                                [0.7, '#37a2da'],
+                                [1, '#fd666d']
+                            ]
+                        }
+                    },
+                    axisTick: {
+                        show: false
+                    },
+                    splitLine: {
+                        length: 12,
+                        lineStyle: {
+                            width: 2,
+                            color: '#999'
+                        }
+                    },
+                    axisLabel: {
+                        distance: -20,
+                        color: '#999',
+                        fontSize: 10
+                    },
+                    anchor: {
+                        show: true,
+                        showAbove: true,
+                        size: 15,
+                        itemStyle: {
+                            borderWidth: 6
+                        }
+                    },
+                    detail: {
+                        valueAnimation: true,
+                        fontSize: 18,
+                        offsetCenter: [0, '70%'],
+                        formatter: '{value}%'
+                    },
+                    title: {
+                        offsetCenter: [0, '90%'],
+                        fontSize: 12
+                    },
+                    data: [{ value: 0, name: '{{ lang.cpu_usage }}' }]
+                }]
+            }
+        };
+
+        // 应用图表配置
+        cpuChart.setOption(chartOptions.cpu);
+        memoryChart.setOption(chartOptions.memory);
+        statusChart.setOption(chartOptions.status);
+        gaugeChart.setOption(chartOptions.gauge);
+
+        // 更新当前时间
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString();
+        }
+
+        // 更新告警横幅
+        function updateAlertBanner() {
+            fetch('/api/alerts')
+                .then(response => response.json())
+                .then(data => {
+                    const activeAlerts = data.active_alerts;
+                    const criticalCount = activeAlerts.filter(a => a.alert_level === 'critical').length;
+                    const warningCount = activeAlerts.filter(a => a.alert_level === 'warning').length;
+                    
+                    const banner = document.getElementById('alertBanner');
+                    const criticalSpan = document.getElementById('criticalCount');
+                    const warningSpan = document.getElementById('warningCount');
+                    
+                    if (criticalCount > 0 || warningCount > 0) {
+                        banner.style.display = 'block';
+                        criticalSpan.textContent = criticalCount;
+                        warningSpan.textContent = warningCount;
+                        
+                        if (criticalCount > 0) {
+                            banner.className = 'alert-banner alert-critical';
+                        } else {
+                            banner.className = 'alert-banner alert-warning';
+                        }
+                    } else {
+                        banner.style.display = 'none';
+                    }
+                })
+                .catch(error => console.error('获取告警数据失败:', error));
+        }
+
+        // 更新表格和图表数据
+        function updateData() {
+            fetch('/api/metrics')
+                .then(response => response.json())
+                .then(metrics => {
+                    updateMetricsTable(metrics);
+                    updateCharts(metrics);
+                    updateOverview(metrics);
+                    document.getElementById('lastUpdateTime').textContent = new Date().toLocaleString();
+                })
+                .catch(error => console.error('获取数据失败:', error));
+        }
+
+        // 更新概览数据
+        function updateOverview(metrics) {
+            const ips = Object.keys(metrics);
+            let onlineCount = 0;
+            let offlineCount = 0;
+            let totalCpu = 0;
+            let totalMemory = 0;
+            let validCpuCount = 0;
+            let validMemoryCount = 0;
+
+            ips.forEach(ip => {
+                const data = metrics[ip];
+                if (data.status === 'online') {
+                    onlineCount++;
+                    if (typeof data.cpu === 'number' && data.cpu > 0) {
+                        totalCpu += data.cpu;
+                        validCpuCount++;
+                    }
+                    if (typeof data.memory === 'number' && data.memory > 0) {
+                        totalMemory += data.memory;
+                        validMemoryCount++;
+                    }
+                } else {
+                    offlineCount++;
+                }
+            });
+
+            document.getElementById('onlineCount').textContent = onlineCount;
+            document.getElementById('offlineCount').textContent = offlineCount;
+            document.getElementById('totalCount').textContent = ips.length;
+            
+            const avgCpu = validCpuCount > 0 ? (totalCpu / validCpuCount).toFixed(1) : 0;
+            const avgMemory = validMemoryCount > 0 ? (totalMemory / validMemoryCount).toFixed(1) : 0;
+            
+            document.getElementById('avgCpu').textContent = `${avgCpu}%`;
+            document.getElementById('avgMemory').textContent = `${avgMemory}%`;
+            
+            // 设置颜色
+            document.getElementById('avgCpu').className = `metric-value ${avgCpu > 90 ? 'text-danger' : avgCpu > 80 ? 'text-warning' : 'text-success'}`;
+            document.getElementById('avgMemory').className = `metric-value ${avgMemory > 90 ? 'text-danger' : avgMemory > 80 ? 'text-warning' : 'text-primary'}`;
+        }
+
+        // 更新监控数据表格
+        function updateMetricsTable(metrics) {
+            const metricsTable = document.getElementById('metricsTable');
+            if (Object.keys(metrics).length === 0) {
+                metricsTable.innerHTML = '<div class="alert alert-info text-center">暂无监控数据，请先采集数据。</div>';
+                return;
+            }
+
+            let html = `
+                <table class="table table-hover table-striped">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{{ lang.server }}</th>
+                            <th>{{ lang.cpu_usage }}</th>
+                            <th>{{ lang.memory_usage }}</th>
+                            <th>{{ lang.status }}</th>
+                            <th>{{ lang.last_update }}</th>
+                            <th>{{ lang.operation }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const [ip, data] of Object.entries(metrics)) {
+                const statusClass = data.status === 'online' ? 'success' : 'danger';
+                const statusText = data.status === 'online' ? '{{ lang.online }}' : '{{ lang.offline }}';
+                const cpuValue = typeof data.cpu === 'number' ? data.cpu.toFixed(1) + '%' : data.cpu;
+                const memoryValue = typeof data.memory === 'number' ? data.memory.toFixed(1) + '%' : data.memory;
+                
+                // 添加告警颜色
+                const cpuColor = data.cpu > 90 ? 'text-danger fw-bold' : 
+                                data.cpu > 80 ? 'text-warning' : 'text-success';
+                const memoryColor = data.memory > 90 ? 'text-danger fw-bold' : 
+                                  data.memory > 80 ? 'text-warning' : 'text-primary';
+                
+                html += `
+                    <tr>
+                        <td>${ip}</td>
+                        <td class="${cpuColor}">${cpuValue}</td>
+                        <td class="${memoryColor}">${memoryValue}</td>
+                        <td>
+                            <span class="badge bg-${statusClass}">
+                                <span class="status-indicator status-${data.status}"></span>
+                                ${statusText}
+                            </span>
+                        </td>
+                        <td>${data.last_update}</td>
+                        <td>
+                            <a href="/collect/${ip}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </a>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            html += '</tbody></table>';
+            metricsTable.innerHTML = html;
+        }
+
+        // 更新主机列表表格
+        function updateHostsTable() {
+            fetch('/api/hosts')
+                .then(response => response.json())
+                .then(hosts => {
+                    const hostsTable = document.getElementById('hostsTable');
+                    document.getElementById('hostCount').textContent = hosts.length;
+                    
+                    if (hosts.length === 0) {
+                        hostsTable.innerHTML = '<div class="alert alert-warning text-center">暂无主机，请先添加主机。</div>';
+                        return;
+                    }
+
+                    let html = `
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>{{ lang.ip_address }}</th>
+                                        <th>{{ lang.username }}</th>
+                                        <th>{{ lang.ssh_port }}</th>
+                                        <th>{{ lang.added_time }}</th>
+                                        <th>{{ lang.operation }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+
+                    hosts.forEach(host => {
+                        html += `
+                            <tr>
+                                <td>${host.ip}</td>
+                                <td>${host.user}</td>
+                                <td>${host.port}</td>
+                                <td>${host.added_time}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="/collect/${host.ip}" class="btn btn-outline-primary" title="{{ lang.collect_data }}">
+                                            <i class="bi bi-arrow-clockwise"></i>
+                                        </a>
+                                        <a href="/delete_host/${host.ip}" class="btn btn-outline-danger" title="{{ lang.delete }}" onclick="return confirm('确定删除主机 ${host.ip} 吗？')">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    html += `
+                            </tbody>
+                        </table>
+                    </div>
+                    `;
+                    hostsTable.innerHTML = html;
+                })
+                .catch(error => console.error('获取主机列表失败:', error));
+        }
+
+        // 更新图表
+        function updateCharts(metrics) {
+            const ips = Object.keys(metrics);
+            const cpuData = [];
+            const memoryData = [];
+            let onlineCount = 0;
+            let offlineCount = 0;
+            let totalCpu = 0;
+            let validCpuCount = 0;
+
+            ips.forEach(ip => {
+                const data = metrics[ip];
+                const cpu = typeof data.cpu === 'number' ? data.cpu : 0;
+                const memory = typeof data.memory === 'number' ? data.memory : 0;
+                
+                cpuData.push(cpu);
+                memoryData.push(memory);
+                
+                if (data.status === 'online') {
+                    onlineCount++;
+                    if (cpu > 0) {
+                        totalCpu += cpu;
+                        validCpuCount++;
+                    }
+                } else {
+                    offlineCount++;
+                }
+            });
+
+            // 更新CPU图表
+            cpuChart.setOption({
+                xAxis: { data: ips },
+                series: [{ data: cpuData }]
+            });
+
+            // 更新内存图表
+            memoryChart.setOption({
+                xAxis: { data: ips },
+                series: [{ data: memoryData }]
+            });
+
+            // 更新状态饼图
+            statusChart.setOption({
+                series: [{
+                    data: [
+                        { value: onlineCount, name: '{{ lang.online }}' },
+                        { value: offlineCount, name: '{{ lang.offline }}' }
+                    ]
+                }]
+            });
+
+            // 更新仪表盘
+            const avgCpu = validCpuCount > 0 ? totalCpu / validCpuCount : 0;
+            gaugeChart.setOption({
+                series: [{
+                    data: [{ value: avgCpu.toFixed(1), name: '{{ lang.cpu_usage }}' }]
+                }]
+            });
+        }
+
+        // 窗口调整大小时重新调整图表大小
+        window.addEventListener('resize', function() {
+            cpuChart.resize();
+            memoryChart.resize();
+            statusChart.resize();
+            gaugeChart.resize();
+        });
+
+        // 页面加载时初始化数据
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化时间
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+            
+            // 初始化数据
+            updateHostsTable();
+            updateData();
+            updateAlertBanner();
+            
+            // 每30秒自动刷新数据
+            setInterval(updateData, 30000);
+            
+            // 每60秒刷新主机列表和告警横幅
+            setInterval(() => {
+                updateHostsTable();
+                updateAlertBanner();
+            }, 60000);
+        });
+    </script>
+</body>
+</html>

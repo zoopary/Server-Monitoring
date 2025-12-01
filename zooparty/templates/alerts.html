@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ lang.alert_center }} - 服务器监控系统</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <!-- ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-bg: #f8f9fa;
+            --dark-bg: #343a40;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 1.5rem;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid #eaeaea;
+            font-weight: 600;
+            padding: 1rem 1.25rem;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        
+        .alert-critical {
+            border-left: 4px solid var(--danger-color);
+            background: rgba(231, 76, 60, 0.05);
+        }
+        
+        .alert-warning {
+            border-left: 4px solid var(--warning-color);
+            background: rgba(243, 156, 18, 0.05);
+        }
+        
+        .alert-item {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .alert-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .threshold-config {
+            background: linear-gradient(135deg, #e8f5e9, #f3e5f5);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--success-color);
+        }
+        
+        .chart-container {
+            height: 300px;
+            border-radius: 10px;
+            background: white;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .no-alerts {
+            text-align: center;
+            padding: 3rem;
+            color: #6c757d;
+        }
+        
+        .alert-level-critical {
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+        
+        .alert-level-warning {
+            color: var(--warning-color);
+            font-weight: bold;
+        }
+        
+        .badge-critical {
+            background-color: var(--danger-color);
+        }
+        
+        .badge-warning {
+            background-color: var(--warning-color);
+        }
+        
+        .resolved-row {
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
+        
+        .table-hover tbody tr:hover {
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-success {
+            background-color: var(--success-color);
+            border-color: var(--success-color);
+        }
+        
+        .btn-warning {
+            background-color: var(--warning-color);
+            border-color: var(--warning-color);
+        }
+        
+        .btn-danger {
+            background-color: var(--danger-color);
+            border-color: var(--danger-color);
+        }
+        
+        .language-switcher {
+            margin-left: 15px;
+        }
+        
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 250px;
+            }
+            
+            .alert-item {
+                padding: 0.75rem;
+            }
+            
+            .language-switcher {
+                margin-left: 0;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-graph-up"></i> 服务器监控系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="bi bi-speedometer2"></i> {{ lang.nav_dashboard }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/alerts">
+                            <i class="bi bi-bell"></i> {{ lang.nav_alerts }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/history">
+                            <i class="bi bi-clock-history"></i> {{ lang.nav_history }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/statistics">
+                            <i class="bi bi-graph-up-arrow"></i> {{ lang.nav_statistics }}
+                        </a>
+                    </li>
+                </ul>
+                <div class="navbar-text d-flex align-items-center">
+                    <div class="language-switcher">
+                        <div class="btn-group">
+                            <a href="/set_language/zh" class="btn btn-sm {{ 'btn-primary' if language == 'zh' else 'btn-outline-primary' }}">中文</a>
+                            <a href="/set_language/en" class="btn btn-sm {{ 'btn-primary' if language == 'en' else 'btn-outline-primary' }}">English</a>
+                        </div>
+                    </div>
+                    <span class="ms-3">
+                        <i class="bi bi-clock"></i> <span id="currentTime">--:--:--</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 页面标题 -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-bell-fill text-warning"></i> {{ lang.alert_center }}</h1>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" onclick="loadAlertData()">
+                    <i class="bi bi-arrow-clockwise"></i> {{ lang.refresh }}
+                </button>
+            </div>
+        </div>
+
+        <!-- 告警阈值配置 -->
+        <div class="threshold-config">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0"><i class="bi bi-sliders"></i> {{ lang.alert_threshold_config }}</h4>
+                <button class="btn btn-success" onclick="updateThresholds()">
+                    <i class="bi bi-check-lg"></i> {{ lang.update_thresholds }}
+                </button>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6 col-lg-3">
+                    <label for="cpuWarning" class="form-label">{{ lang.cpu_warning_threshold }}</label>
+                    <input type="number" class="form-control" id="cpuWarning" min="0" max="100" value="{{ thresholds.cpu_warning }}">
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <label for="cpuCritical" class="form-label">{{ lang.cpu_critical_threshold }}</label>
+                    <input type="number" class="form-control" id="cpuCritical" min="0" max="100" value="{{ thresholds.cpu_critical }}">
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <label for="memoryWarning" class="form-label">{{ lang.memory_warning_threshold }}</label>
+                    <input type="number" class="form-control" id="memoryWarning" min="0" max="100" value="{{ thresholds.memory_warning }}">
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <label for="memoryCritical" class="form-label">{{ lang.memory_critical_threshold }}</label>
+                    <input type="number" class="form-control" id="memoryCritical" min="0" max="100" value="{{ thresholds.memory_critical }}">
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- 当前告警 -->
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-exclamation-triangle"></i> {{ lang.current_alerts }}</span>
+                        <span class="badge bg-danger" id="activeAlertCount">0</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="activeAlerts">
+                            <!-- 动态加载当前告警 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 告警统计 -->
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-graph-up"></i> {{ lang.alert_statistics }}
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="metric-value text-danger" id="criticalCount">0</div>
+                                <div class="metric-label">{{ lang.critical_alerts }}</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-value text-warning" id="warningCount">0</div>
+                                <div class="metric-label">{{ lang.warning }}</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="metric-value text-primary" id="totalAlertCount">0</div>
+                                <div class="metric-label">{{ lang.total_alerts }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 告警类型分布 -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <i class="bi bi-pie-chart"></i> {{ lang.alert_type_distribution }}
+                    </div>
+                    <div class="card-body">
+                        <div id="alertTypeChart" class="chart-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 告警趋势 -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-bar-chart-line"></i> {{ lang.alert_trend }}
+            </div>
+            <div class="card-body">
+                <div id="alertTrendChart" class="chart-container"></div>
+            </div>
+        </div>
+
+        <!-- 告警历史 -->
+        <div class="card mt-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock-history"></i> {{ lang.alert_history }} ({{ lang.recent_7_days }})</span>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="showResolved" onchange="loadAlertData()">
+                    <label class="form-check-label" for="showResolved">{{ lang.show_resolved }}</label>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <div id="alertHistory">
+                        <!-- 动态加载告警历史 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // 初始化图表
+        const alertTypeChart = echarts.init(document.getElementById('alertTypeChart'));
+        const alertTrendChart = echarts.init(document.getElementById('alertTrendChart'));
+
+        // 图表配置
+        const chartOptions = {
+            alertType: {
+                title: { 
+                    text: '{{ lang.alert_type_distribution }}', 
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{a} <br/>{b}: {c} ({d}%)'
+                },
+                legend: {
+                    orient: 'horizontal',
+                    bottom: 0
+                },
+                series: [{
+                    name: '{{ lang.alert_type }}',
+                    type: 'pie',
+                    radius: '70%',
+                    center: ['50%', '45%'],
+                    data: [],
+                    emphasis: {
+                        itemStyle: {
+                            shadowBlur: 10,
+                            shadowOffsetX: 0,
+                            shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        }
+                    },
+                    label: {
+                        formatter: '{b}: {c} ({d}%)'
+                    }
+                }]
+            },
+            alertTrend: {
+                title: { 
+                    text: '{{ lang.alert_trend }}', 
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'cross',
+                        label: {
+                            backgroundColor: '#6a7985'
+                        }
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: []
+                },
+                yAxis: {
+                    type: 'value'
+                },
+                dataZoom: [{
+                    type: 'inside',
+                    start: 0,
+                    end: 100
+                }],
+                series: [{
+                    name: '{{ lang.alert_count }}',
+                    type: 'line',
+                    smooth: true,
+                    lineStyle: {
+                        width: 3
+                    },
+                    areaStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            colorStops: [{
+                                offset: 0,
+                                color: 'rgba(255, 77, 79, 0.3)'
+                            }, {
+                                offset: 1,
+                                color: 'rgba(255, 77, 79, 0.1)'
+                            }]
+                        }
+                    },
+                    itemStyle: {
+                        color: '#ff4d4f'
+                    },
+                    data: []
+                }]
+            }
+        };
+
+        // 应用图表配置
+        alertTypeChart.setOption(chartOptions.alertType);
+        alertTrendChart.setOption(chartOptions.alertTrend);
+
+        // 更新当前时间
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString();
+        }
+
+        // 加载阈值配置
+        function loadThresholds() {
+            fetch('/api/thresholds')
+                .then(response => response.json())
+                .then(thresholds => {
+                    document.getElementById('cpuWarning').value = thresholds.cpu_warning;
+                    document.getElementById('cpuCritical').value = thresholds.cpu_critical;
+                    document.getElementById('memoryWarning').value = thresholds.memory_warning;
+                    document.getElementById('memoryCritical').value = thresholds.memory_critical;
+                });
+        }
+
+        // 更新阈值配置
+        function updateThresholds() {
+            const newThresholds = {
+                cpu_warning: parseInt(document.getElementById('cpuWarning').value),
+                cpu_critical: parseInt(document.getElementById('cpuCritical').value),
+                memory_warning: parseInt(document.getElementById('memoryWarning').value),
+                memory_critical: parseInt(document.getElementById('memoryCritical').value)
+            };
+
+            fetch('/api/thresholds', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newThresholds)
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 显示成功提示
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                alertDiv.innerHTML = `
+                    <i class="bi bi-check-circle-fill"></i> {{ lang.threshold_update_success }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.threshold-config'));
+                
+                // 自动隐藏提示
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.parentNode.removeChild(alertDiv);
+                    }
+                }, 3000);
+            })
+            .catch(error => {
+                // 显示错误提示
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+                alertDiv.innerHTML = `
+                    <i class="bi bi-exclamation-triangle-fill"></i> {{ lang.threshold_update_failed }}: ${error}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.threshold-config'));
+            });
+        }
+
+        // 解决告警
+        function resolveAlert(alertId) {
+            if (confirm('{{ lang.confirm_resolve_alert }}')) {
+                window.location.href = `/resolve_alert/${alertId}`;
+            }
+        }
+
+        // 加载告警数据
+        function loadAlertData() {
+            fetch('/api/alerts')
+                .then(response => response.json())
+                .then(data => {
+                    updateActiveAlerts(data.active_alerts);
+                    updateAlertHistory(data.alert_history);
+                    updateAlertCharts(data.alert_history);
+                    updateAlertStats(data.active_alerts, data.alert_history);
+                })
+                .catch(error => console.error('{{ lang.fetch_alert_data_failed }}:', error));
+        }
+
+        // 更新告警统计
+        function updateAlertStats(activeAlerts, alertHistory) {
+            const criticalCount = activeAlerts.filter(a => a.alert_level === 'critical').length;
+            const warningCount = activeAlerts.filter(a => a.alert_level === 'warning').length;
+            
+            document.getElementById('activeAlertCount').textContent = activeAlerts.length;
+            document.getElementById('criticalCount').textContent = criticalCount;
+            document.getElementById('warningCount').textContent = warningCount;
+            document.getElementById('totalAlertCount').textContent = alertHistory.length;
+        }
+
+        // 更新当前告警
+        function updateActiveAlerts(alerts) {
+            const container = document.getElementById('activeAlerts');
+            
+            if (alerts.length === 0) {
+                container.innerHTML = `
+                    <div class="no-alerts">
+                        <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                        <h4 class="mt-3">🎉 {{ lang.no_active_alerts }}</h4>
+                        <p class="text-muted">{{ lang.all_systems_normal }}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            alerts.forEach(alert => {
+                const alertClass = alert.alert_level === 'critical' ? 'alert-critical' : 'alert-warning';
+                const levelText = alert.alert_level === 'critical' ? '{{ lang.critical }}' : '{{ lang.warning }}';
+                const levelBadge = alert.alert_level === 'critical' ? 'badge-critical' : 'badge-warning';
+                const icon = alert.alert_type === 'cpu' ? 'bi-cpu' : 
+                            alert.alert_type === 'memory' ? 'bi-memory' : 'bi-hdd';
+                
+                html += `
+                    <div class="alert-item ${alertClass}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="badge ${levelBadge} me-2">${levelText}</span>
+                                    <i class="bi ${icon} me-1"></i>
+                                    <strong>${alert.ip}</strong>
+                                </div>
+                                <p class="mb-2">${alert.message}</p>
+                                <div class="text-muted small">
+                                    <i class="bi bi-clock"></i> ${alert.alert_time} | 
+                                    {{ lang.current_value }}: <strong>${alert.value}%</strong> | 
+                                    {{ lang.threshold }}: ${alert.threshold}%
+                                </div>
+                            </div>
+                            <div class="ms-3">
+                                <button class="btn btn-success btn-sm" onclick="resolveAlert(${alert.id})" title="{{ lang.mark_resolved }}">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // 更新告警历史
+        function updateAlertHistory(alerts) {
+            const container = document.getElementById('alertHistory');
+            const showResolved = document.getElementById('showResolved').checked;
+            
+            // 过滤已解决的告警
+            const filteredAlerts = showResolved ? alerts : alerts.filter(alert => !alert.resolved);
+            
+            if (filteredAlerts.length === 0) {
+                container.innerHTML = '<div class="alert alert-info text-center">{{ lang.no_alert_history }}</div>';
+                return;
+            }
+
+            let html = `
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{{ lang.time }}</th>
+                            <th>{{ lang.server }}</th>
+                            <th>{{ lang.alert_type }}</th>
+                            <th>{{ lang.alert_level }}</th>
+                            <th>{{ lang.message }}</th>
+                            <th>{{ lang.value_threshold }}</th>
+                            <th>{{ lang.status }}</th>
+                            <th>{{ lang.operation }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            filteredAlerts.forEach(alert => {
+                const levelText = alert.alert_level === 'critical' ? '{{ lang.critical }}' : '{{ lang.warning }}';
+                const levelClass = alert.alert_level === 'critical' ? 'danger' : 'warning';
+                const statusText = alert.resolved ? '{{ lang.resolved }}' : '{{ lang.active }}';
+                const statusClass = alert.resolved ? 'success' : 'danger';
+                const rowClass = alert.resolved ? 'resolved-row' : '';
+                const icon = alert.alert_type === 'cpu' ? 'bi-cpu' : 
+                            alert.alert_type === 'memory' ? 'bi-memory' : 'bi-hdd';
+                
+                html += `
+                    <tr class="${rowClass}">
+                        <td>${alert.alert_time}</td>
+                        <td>${alert.ip}</td>
+                        <td><i class="bi ${icon}"></i> ${alert.alert_type}</td>
+                        <td><span class="badge bg-${levelClass}">${levelText}</span></td>
+                        <td>${alert.message}</td>
+                        <td>${alert.value}% / ${alert.threshold}%</td>
+                        <td><span class="badge bg-${statusClass}">${statusText}</span></td>
+                        <td>
+                            ${!alert.resolved ? 
+                                `<button class="btn btn-success btn-sm" onclick="resolveAlert(${alert.id})" title="{{ lang.mark_resolved }}">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>` : 
+                                ''
+                            }
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // 更新告警图表
+        function updateAlertCharts(alerts) {
+            // 告警类型分布
+            const typeCount = {};
+            const timeData = {};
+            
+            // 只统计最近24小时的告警用于趋势图
+            const oneDayAgo = new Date();
+            oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+            
+            alerts.forEach(alert => {
+                // 类型统计
+                typeCount[alert.alert_type] = (typeCount[alert.alert_type] || 0) + 1;
+                
+                // 时间趋势（按小时分组，只统计24小时内）
+                const alertTime = new Date(alert.alert_time);
+                if (alertTime > oneDayAgo) {
+                    const hour = alert.alert_time.substr(0, 13); // 取到小时
+                    timeData[hour] = (timeData[hour] || 0) + 1;
+                }
+            });
+
+            // 告警类型图表
+            alertTypeChart.setOption({
+                series: [{
+                    data: Object.entries(typeCount).map(([name, value]) => ({
+                        value: value,
+                        name: name === 'cpu' ? 'CPU' : name === 'memory' ? '{{ lang.memory }}' : '{{ lang.status }}',
+                        itemStyle: {
+                            color: name === 'cpu' ? '#3498db' : 
+                                   name === 'memory' ? '#9b59b6' : '#e74c3c'
+                        }
+                    }))
+                }]
+            });
+
+            // 告警趋势图表
+            const hours = Object.keys(timeData).sort();
+            const counts = hours.map(hour => timeData[hour]);
+            
+            alertTrendChart.setOption({
+                xAxis: {
+                    data: hours.map(hour => hour.substring(11)) // 只显示小时部分
+                },
+                series: [{
+                    data: counts
+                }]
+            });
+        }
+
+        // 窗口调整大小时重绘图表
+        window.addEventListener('resize', function() {
+            alertTypeChart.resize();
+            alertTrendChart.resize();
+        });
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化时间
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+            
+            // 初始化数据
+            loadThresholds();
+            loadAlertData();
+            
+            // 每30秒自动刷新数据
+            setInterval(loadAlertData, 30000);
+        });
+    </script>
+</body>
+</html>

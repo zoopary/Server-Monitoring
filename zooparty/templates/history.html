@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ lang.history_data }} - 服务器监控系统</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <!-- ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-bg: #f8f9fa;
+            --dark-bg: #343a40;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 1.5rem;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid #eaeaea;
+            font-weight: 600;
+            padding: 1rem 1.25rem;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        
+        .control-panel {
+            background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .chart-container {
+            height: 400px;
+            border-radius: 10px;
+            background: white;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .stats-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 1rem;
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: #6c757d;
+        }
+        
+        .table-hover tbody tr:hover {
+            background-color: rgba(52, 152, 219, 0.05);
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .language-switcher {
+            margin-left: 15px;
+        }
+        
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 300px;
+            }
+            
+            .metric-value {
+                font-size: 1.5rem;
+            }
+            
+            .language-switcher {
+                margin-left: 0;
+                margin-top: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-graph-up"></i> 服务器监控系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="bi bi-speedometer2"></i> {{ lang.nav_dashboard }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alerts">
+                            <i class="bi bi-bell"></i> {{ lang.nav_alerts }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/history">
+                            <i class="bi bi-clock-history"></i> {{ lang.nav_history }}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/statistics">
+                            <i class="bi bi-graph-up-arrow"></i> {{ lang.nav_statistics }}
+                        </a>
+                    </li>
+                </ul>
+                <div class="navbar-text d-flex align-items-center">
+                    <div class="language-switcher">
+                        <div class="btn-group">
+                            <a href="/set_language/zh" class="btn btn-sm {{ 'btn-primary' if language == 'zh' else 'btn-outline-primary' }}">中文</a>
+                            <a href="/set_language/en" class="btn btn-sm {{ 'btn-primary' if language == 'en' else 'btn-outline-primary' }}">English</a>
+                        </div>
+                    </div>
+                    <span class="ms-3">
+                        <i class="bi bi-clock"></i> <span id="currentTime">--:--:--</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 页面标题 -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-graph-up text-primary"></i> {{ lang.history_data_query }}</h1>
+            <button class="btn btn-outline-primary" onclick="loadHistoryData()">
+                <i class="bi bi-arrow-clockwise"></i> {{ lang.refresh }}
+            </button>
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="control-panel">
+            <h4 class="mb-3"><i class="bi bi-search"></i> {{ lang.search_conditions }}</h4>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="hostSelect" class="form-label">{{ lang.select_server }}</label>
+                    <select class="form-select" id="hostSelect">
+                        <option value="">{{ lang.select_server_placeholder }}</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="timeRange" class="form-label">{{ lang.time_range }}</label>
+                    <select class="form-select" id="timeRange">
+                        <option value="1">{{ lang.last_1_hour }}</option>
+                        <option value="6">{{ lang.last_6_hours }}</option>
+                        <option value="24" selected>{{ lang.last_24_hours }}</option>
+                        <option value="72">{{ lang.last_3_days }}</option>
+                        <option value="168">{{ lang.last_7_days }}</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="chartType" class="form-label">{{ lang.chart_type }}</label>
+                    <select class="form-select" id="chartType">
+                        <option value="line" selected>{{ lang.line_chart }}</option>
+                        <option value="bar">{{ lang.bar_chart }}</option>
+                        <option value="area">{{ lang.area_chart }}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button class="btn btn-primary" onclick="loadHistoryData()">
+                    <i class="bi bi-search"></i> {{ lang.query_data }}
+                </button>
+            </div>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="stats-panel" id="statsPanel" style="display: none;">
+            <h5 class="mb-3"><i class="bi bi-graph-up"></i> {{ lang.statistical_overview }}</h5>
+            <div class="row">
+                <div class="col-6 col-md-3">
+                    <div class="stat-item">
+                        <div class="metric-value text-primary" id="avgCpu">-</div>
+                        <div class="metric-label">{{ lang.avg_cpu_usage_rate }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-item">
+                        <div class="metric-value text-danger" id="maxCpu">-</div>
+                        <div class="metric-label">{{ lang.max_cpu_usage_rate }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-item">
+                        <div class="metric-value text-success" id="avgMemory">-</div>
+                        <div class="metric-label">{{ lang.avg_memory_usage_rate }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="stat-item">
+                        <div class="metric-value text-warning" id="maxMemory">-</div>
+                        <div class="metric-label">{{ lang.max_memory_usage_rate }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表展示 -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-bar-chart-line"></i> {{ lang.historical_trend_charts }}
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div id="cpuHistoryChart" class="chart-container"></div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div id="memoryHistoryChart" class="chart-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据表格 -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <i class="bi bi-table"></i> {{ lang.detailed_data }}
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <div id="historyTable">
+                        <!-- 动态加载历史数据表格 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // 初始化图表
+        const cpuHistoryChart = echarts.init(document.getElementById('cpuHistoryChart'));
+        const memoryHistoryChart = echarts.init(document.getElementById('memoryHistoryChart'));
+
+        // 基础图表配置
+        const baseChartOption = {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: {
+                    type: 'cross',
+                    label: {
+                        backgroundColor: '#6a7985'
+                    }
+                }
+            },
+            legend: {
+                data: []
+            },
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'time',
+                boundaryGap: false
+            },
+            yAxis: {
+                type: 'value',
+                max: 100,
+                axisLabel: {
+                    formatter: '{value}%'
+                }
+            },
+            dataZoom: [
+                {
+                    type: 'inside',
+                    start: 0,
+                    end: 100
+                },
+                {
+                    start: 0,
+                    end: 100
+                }
+            ]
+        };
+
+        // 更新当前时间
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString();
+        }
+
+        // 加载主机列表
+        function loadHosts() {
+            fetch('/api/hosts')
+                .then(response => response.json())
+                .then(hosts => {
+                    const select = document.getElementById('hostSelect');
+                    select.innerHTML = '<option value="">{{ lang.select_server_placeholder }}</option>';
+                    
+                    hosts.forEach(host => {
+                        const option = document.createElement('option');
+                        option.value = host.ip;
+                        option.textContent = `${host.ip} (${host.user})`;
+                        select.appendChild(option);
+                    });
+                })
+                .catch(error => console.error('{{ lang.load_host_list_failed }}:', error));
+        }
+
+        // 加载历史数据
+        function loadHistoryData() {
+            const hostIp = document.getElementById('hostSelect').value;
+            const hours = document.getElementById('timeRange').value;
+            const chartType = document.getElementById('chartType').value;
+            
+            if (!hostIp) {
+                // 显示警告提示
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-warning alert-dismissible fade show';
+                alertDiv.innerHTML = `
+                    <i class="bi bi-exclamation-triangle-fill"></i> {{ lang.select_server_prompt }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.control-panel'));
+                
+                // 自动隐藏提示
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.parentNode.removeChild(alertDiv);
+                    }
+                }, 3000);
+                return;
+            }
+
+            fetch(`/api/history/${hostIp}?hours=${hours}`)
+                .then(response => response.json())
+                .then(historyData => {
+                    if (historyData.length === 0) {
+                        showNoData();
+                        return;
+                    }
+                    
+                    updateCharts(historyData, chartType);
+                    updateStats(historyData);
+                    updateHistoryTable(historyData);
+                })
+                .catch(error => {
+                    console.error('{{ lang.load_history_data_failed }}:', error);
+                    showNoData();
+                });
+        }
+
+        // 显示无数据提示
+        function showNoData() {
+            document.getElementById('statsPanel').style.display = 'none';
+            document.getElementById('historyTable').innerHTML = `
+                <div class="no-data">
+                    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                    <h4 class="mt-3">📭 {{ lang.no_history_data }}</h4>
+                    <p class="text-muted">{{ lang.no_matching_history_data }}</p>
+                </div>
+            `;
+            
+            cpuHistoryChart.setOption({ ...baseChartOption, series: [] });
+            memoryHistoryChart.setOption({ ...baseChartOption, series: [] });
+        }
+
+        // 更新图表
+        function updateCharts(historyData, chartType) {
+            // 确定系列类型
+            let seriesType = 'line';
+            if (chartType === 'bar') seriesType = 'bar';
+            if (chartType === 'area') seriesType = 'line';
+
+            // CPU历史图表
+            cpuHistoryChart.setOption({
+                ...baseChartOption,
+                title: {
+                    text: '{{ lang.cpu_usage_history_trend }}',
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }
+                },
+                series: [{
+                    name: '{{ lang.cpu_usage }}',
+                    type: seriesType,
+                    data: historyData.map(item => [item.timestamp, item.cpu]),
+                    smooth: true,
+                    itemStyle: { color: '#3498db' },
+                    areaStyle: seriesType === 'line' ? {
+                        color: {
+                            type: 'linear',
+                            x: 0, y: 0, x2: 0, y2: 1,
+                            colorStops: [
+                                { offset: 0, color: 'rgba(52, 152, 219, 0.3)' },
+                                { offset: 1, color: 'rgba(52, 152, 219, 0.1)' }
+                            ]
+                        }
+                    } : undefined
+                }]
+            });
+
+            // 内存历史图表
+            memoryHistoryChart.setOption({
+                ...baseChartOption,
+                title: {
+                    text: '{{ lang.memory_usage_history_trend }}',
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 14,
+                        fontWeight: 'bold'
+                    }
+                },
+                series: [{
+                    name: '{{ lang.memory_usage }}',
+                    type: seriesType,
+                    data: historyData.map(item => [item.timestamp, item.memory]),
+                    smooth: true,
+                    itemStyle: { color: '#27ae60' },
+                    areaStyle: seriesType === 'line' ? {
+                        color: {
+                            type: 'linear',
+                            x: 0, y: 0, x2: 0, y2: 1,
+                            colorStops: [
+                                { offset: 0, color: 'rgba(39, 174, 96, 0.3)' },
+                                { offset: 1, color: 'rgba(39, 174, 96, 0.1)' }
+                            ]
+                        }
+                    } : undefined
+                }]
+            });
+        }
+
+        // 更新统计信息
+        function updateStats(historyData) {
+            const cpuValues = historyData.map(item => item.cpu).filter(val => val > 0);
+            const memoryValues = historyData.map(item => item.memory).filter(val => val > 0);
+            
+            const avgCpu = cpuValues.length > 0 ? 
+                (cpuValues.reduce((a, b) => a + b, 0) / cpuValues.length).toFixed(1) : 0;
+            const maxCpu = cpuValues.length > 0 ? Math.max(...cpuValues).toFixed(1) : 0;
+            const avgMemory = memoryValues.length > 0 ? 
+                (memoryValues.reduce((a, b) => a + b, 0) / memoryValues.length).toFixed(1) : 0;
+            const maxMemory = memoryValues.length > 0 ? Math.max(...memoryValues).toFixed(1) : 0;
+            
+            document.getElementById('avgCpu').textContent = avgCpu + '%';
+            document.getElementById('maxCpu').textContent = maxCpu + '%';
+            document.getElementById('avgMemory').textContent = avgMemory + '%';
+            document.getElementById('maxMemory').textContent = maxMemory + '%';
+            
+            // 设置颜色
+            document.getElementById('avgCpu').className = `metric-value ${avgCpu > 90 ? 'text-danger' : avgCpu > 80 ? 'text-warning' : 'text-primary'}`;
+            document.getElementById('maxCpu').className = `metric-value ${maxCpu > 90 ? 'text-danger' : maxCpu > 80 ? 'text-warning' : 'text-primary'}`;
+            document.getElementById('avgMemory').className = `metric-value ${avgMemory > 90 ? 'text-danger' : avgMemory > 80 ? 'text-warning' : 'text-success'}`;
+            document.getElementById('maxMemory').className = `metric-value ${maxMemory > 90 ? 'text-danger' : maxMemory > 80 ? 'text-warning' : 'text-success'}`;
+            
+            document.getElementById('statsPanel').style.display = 'block';
+        }
+
+        // 更新历史数据表格
+        function updateHistoryTable(historyData) {
+            const table = document.getElementById('historyTable');
+            
+            let html = `
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>{{ lang.time }}</th>
+                            <th>{{ lang.cpu_usage }}</th>
+                            <th>{{ lang.memory_usage }}</th>
+                            <th>{{ lang.status }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            // 只显示最近50条记录以避免页面过长
+            const displayData = historyData.slice(-50);
+            
+            displayData.forEach(item => {
+                const statusClass = item.status === 'online' ? 'success' : 'danger';
+                const statusText = item.status === 'online' ? '{{ lang.online }}' : '{{ lang.offline }}';
+                const cpuColor = item.cpu > 90 ? 'text-danger fw-bold' : 
+                                item.cpu > 80 ? 'text-warning' : 'text-success';
+                const memoryColor = item.memory > 90 ? 'text-danger fw-bold' : 
+                                  item.memory > 80 ? 'text-warning' : 'text-primary';
+                
+                html += `
+                    <tr>
+                        <td>${item.timestamp}</td>
+                        <td class="${cpuColor}">${item.cpu.toFixed(1)}%</td>
+                        <td class="${memoryColor}">${item.memory.toFixed(1)}%</td>
+                        <td><span class="badge bg-${statusClass}">${statusText}</span></td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                    </tbody>
+                </table>
+                <p class="text-muted mt-3">
+                    <i class="bi bi-info-circle"></i> {{ lang.display_recent_records }} ${displayData.length} {{ lang.total_records }} ${historyData.length} {{ lang.records }}
+                </p>
+            `;
+            
+            table.innerHTML = html;
+        }
+
+        // 窗口调整大小时重绘图表
+        window.addEventListener('resize', function() {
+            cpuHistoryChart.resize();
+            memoryHistoryChart.resize();
+        });
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化时间
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+            
+            // 初始化数据
+            loadHosts();
+        });
+    </script>
+</body>
+</html>
